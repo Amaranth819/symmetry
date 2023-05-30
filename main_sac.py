@@ -1,9 +1,10 @@
 import argparse
 import yaml
 import os
+import gymnasium as gym
 import torch
 from sac import SACPolicy
-from collect import collect_from_env
+from collect import collect_from_env, eval_policy, record_video
 from data import ReplayBuffer
 from mpenv import make_mp_diffenvs, SubprocVecEnv
 from network import GaussianActorNet, CriticNet
@@ -39,7 +40,7 @@ def read_parser():
     parser.add_argument('--log_path', type = str, default = 'SAC/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
-    parser.add_argument('--n_eval_steps', default = 5)
+    parser.add_argument('--n_eval_epochs', default = 5)
     parser.add_argument('--batch_size', type = int, default = 256)
 
     config = parser.parse_args()
@@ -96,8 +97,8 @@ def main(
     # Evaluation before training
     total_steps = 0
     n_steps = env._max_episode_steps
-    _, episode_log = collect_from_env(env, policy, n_steps, True)
-    eval_res, eval_res_str = episode_log.analysis()
+    eval_log = eval_policy(env, policy, config.n_eval_epochs)
+    eval_res, eval_res_str = eval_log.analysis()
     best_eval_rewards = eval_res['episode_reward_mean']
     summary.add(total_steps, eval_res, prefix = 'Eval/')
     print(f'Eval step {total_steps}: (Deterministic) {eval_res_str}')
@@ -111,13 +112,13 @@ def main(
         buffer.add(episode_batch)
 
         # Update policy
-        result_log = DataListLogger()
+        train_log = DataListLogger()
         total_train_batches = config.update_frequency * n_steps
         for _ in range(total_train_batches):
-            one_time_update_log = policy.update(config.batch_size, buffer)
-            for key, val in one_time_update_log.items():
-                result_log.add(key, val)
-        train_res, _ = result_log.analysis()
+            one_time_train_log = policy.update(config.batch_size, buffer)
+            for key, val in one_time_train_log.items():
+                train_log.add(key, val)
+        train_res, _ = train_log.analysis()
 
         # Summary
         total_steps += n_steps
@@ -126,10 +127,10 @@ def main(
 
         # Evaluation
         if total_steps % config.eval_frequency == 0:
-            _, episode_log = collect_from_env(env, policy, n_steps, True)
-            eval_res, eval_res_str = episode_log.analysis()
+            eval_log = eval_policy(env, policy, config.n_eval_epochs)
+            eval_res, eval_res_str = eval_log.analysis()
             summary.add(total_steps, eval_res, prefix = 'Eval/')
-            print(f'Eval step {total_steps}: {eval_res_str}')
+            print(f'Eval step {total_steps}: (Deterministic) {eval_res_str}')
             if eval_res['episode_reward_mean'] > best_eval_rewards:
                 best_eval_rewards = eval_res['episode_reward_mean']
                 print('Got a better model!')
@@ -142,6 +143,14 @@ def main(
     policy.save(os.path.join(config.log_path, 'final_policy.pkl'))
     env.close()
 
+
+    # # Record video, currently not work on server
+    # env = gym.make(config.env_id, render_mode = 'human')
+    # policy.load(os.path.join(config.log_path, 'final_policy.pkl'))
+    # record_video(env, policy, is_eval = True, video_path = 'final_policy.mp4')
+    # policy.load(os.path.join(config.log_path, 'best_policy.pkl'))
+    # record_video(env, policy, is_eval = True, video_path = 'best_policy.mp4')
+    # env.close()
 
 
 if __name__ == '__main__':

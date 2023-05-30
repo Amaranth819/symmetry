@@ -62,6 +62,21 @@ def collect_from_env(
     return batch, episode_log
 
 
+def eval_policy(
+    env : SubprocVecEnv,
+    policy : BasePolicy,
+    n_eval_epochs : int,
+    n_steps = None
+):
+    if n_steps is None:
+        n_steps = env._max_episode_steps
+    all_eval_log = DataListLogger()
+    for _ in range(n_eval_epochs):
+        _, episode_log = collect_from_env(env, policy, n_steps, True)
+        all_eval_log.merge_logger(episode_log)
+    return all_eval_log
+
+
 def record_video(
     env: gym.Env,
     policy : BasePolicy = None,
@@ -69,7 +84,7 @@ def record_video(
     video_path = './eval.mp4'
 ):
     n_steps = env._max_episode_steps
-    obs = env.reset()
+    obs, _ = env.reset() # In Gymnasium, reset() function returns (obs, info)
     recorder = VideoRecorder(env, video_path, enabled = True)
     total_reward, total_step = 0, 0
 
@@ -82,11 +97,14 @@ def record_video(
                 act = act.cpu().numpy()
                 act = policy.map_action(act)
 
-        next_obs, reward, done, info = env.step(act)
+        next_obs, reward, done, _, _ = env.step(act)
         recorder.capture_frame()
         obs = np.copy(next_obs)
         total_reward += reward
         total_step += 1
+
+        if done:
+            break
 
     recorder.close()
     recorder.enabled = False

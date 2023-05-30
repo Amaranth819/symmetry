@@ -16,6 +16,11 @@ class DataListLogger(object):
         self.data[tag].append(val)
 
 
+    def merge_logger(self, logger):
+        for tag, val_list in logger.data.items():
+            self.data[tag].extend(val_list)
+
+
     def analysis(self):
         res = {}
         res_str = []
@@ -46,3 +51,24 @@ class SummaryLogger(object):
 
     def close(self):
         self.summary.close()
+
+
+
+if __name__ == '__main__':
+    d1 = DataListLogger()
+    for i in range(4):
+        d1.add('a', i)
+    for i in range(5,10):
+        d1.add('b', i)
+
+    d2 = DataListLogger()
+    for i in range(5,9):
+        d2.add('a', i)
+    for i in range(0,3):
+        d2.add('c', i)
+
+    d3 = DataListLogger()
+    d3.merge_logger(d1)
+    d3.merge_logger(d2)
+
+    print(d3.data)
