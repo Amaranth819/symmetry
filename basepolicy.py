@@ -16,7 +16,7 @@ class BasePolicy(nn.Module):
         observation_space = None,
         action_space = None,
         action_scaling = False,
-        action_bounding_func = 'tanh',
+        action_bounding_func = '',
         device = 'cuda'
     ) -> None:
         super().__init__()

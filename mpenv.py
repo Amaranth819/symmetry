@@ -31,31 +31,29 @@ class CloudpickleWrapper(object):
 def worker(remote, parent_remote, env_fn, params):
     parent_remote.close()
     env = env_fn(**params)
-    episode_reward = 0
-    episode_step = 0
+    # episode_reward = 0
+    # episode_step = 0
 
     while True:
         cmd, data = remote.recv()
 
         if cmd == 'step':
-            obs, reward, done, _, info = env.step(data)
-            episode_reward += reward
-            episode_step += 1
-            if episode_step >= env._max_episode_steps:
-                done = True
-            if done:
+            obs, reward, done, truncated, info = env.step(data)
+            # episode_reward += reward
+            # episode_step += 1
+            # if episode_step >= env._max_episode_steps:
+            #     # Actually variable "truncated" also checks whether exceeding the time limit by default.
+            #     done = True
+            if done or truncated:
                 obs, _ = env.reset()
-                info['episode_reward'] = episode_reward
-                info['episode_step'] = episode_step
-                episode_reward = 0
-                episode_step = 0
-            info['terminate'] = done
-            remote.send((obs, reward, done, info))
+                # episode_reward = 0
+                # episode_step = 0
+            remote.send((obs, reward, done, truncated, info))
         elif cmd == 'reset':
-            obs, _ = env.reset(**data)
-            episode_reward = 0
-            episode_step = 0
-            remote.send(obs)
+            obs, info = env.reset(**data)
+            # episode_reward = 0
+            # episode_step = 0
+            remote.send((obs, info))
         elif cmd == 'render':
             remote.send(env.render(mode = data))
         elif cmd == 'sample_action':
@@ -132,8 +130,8 @@ class SubprocVecEnv(object):
         self.waiting = False
 
         results = [remote.recv() for remote in self.remotes]
-        obs, rewards, dones, infos = zip(*results)
-        return np.stack(obs), np.stack(rewards), np.stack(dones), np.stack(infos)
+        obs, rewards, dones, truncateds, infos = zip(*results)
+        return np.stack(obs), np.stack(rewards), np.stack(dones), np.stack(truncateds), np.stack(infos)
 
 
     def step(self, actions):
@@ -144,7 +142,9 @@ class SubprocVecEnv(object):
     def reset(self, **params):
         for remote in self.remotes:
             remote.send(('reset', params))
-        return np.stack([remote.recv() for remote in self.remotes])
+        results = [remote.recv() for remote in self.remotes]
+        obs, infos = zip(*results)
+        return np.stack(obs), np.stack(infos)
 
 
     # def render(self, mode):
@@ -204,10 +204,10 @@ def make_mp_diffenvs(env_id, params_list = [{}]):
 
 if __name__ == '__main__':
     env = make_mp_diffenvs('HalfCheetah-v4', [{} for _ in range(2)])
-    env.reset()
-    done = False
-    i = 0
-    while not np.all(done):
-        _, _, done, info = env.step(env.sample_actions())
-        i += 1
-    print(i, info)
+    # env = gym.make('HalfCheetah-v4')
+    print(env.reset())
+    for _ in range(1000):
+        # _, _, done, truncated, _ = env.step(env.action_space.sample())
+        _, _, done, truncated, _ = env.step(env.sample_actions())
+
+    print(done, truncated)

@@ -24,7 +24,7 @@ class SACPolicy(BasePolicy):
         observation_space = None,
         action_space = None,
         action_scaling = False,
-        action_bounding_func = 'tanh',
+        action_bounding_func = '',
         device = 'cuda'
     ) -> None:
         super().__init__(observation_space, action_space, action_scaling, action_bounding_func, device)
@@ -136,6 +136,8 @@ class SACPolicy(BasePolicy):
             self.log_alpha_optimizer.step()
             self.alpha = self.log_alpha.detach().exp().item()
             result_log['alpha_loss'] = alpha_loss.item()
+            result_log['alpha'] = self.alpha
+            result_log['log_alpha'] = self.log_alpha.detach().item()
 
         # Soft update for critics
         self.soft_update(self.critic1_target, self.critic1, self.tau)

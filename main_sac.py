@@ -15,7 +15,7 @@ def read_parser():
     parser = argparse.ArgumentParser()
 
     # Environment settings
-    parser.add_argument('--env_id', type = str, default = 'HalfCheetah-v4')
+    parser.add_argument('--env_id', type = str, default = 'Hopper-v4')
     parser.add_argument('--n_envs', type = int, default = 4)
     parser.add_argument('--buffer_capacity', type = int, default = 500000)
 
@@ -24,7 +24,7 @@ def read_parser():
     parser.add_argument('--actor_hidden_dims', type = list, default = [256, 256])
     parser.add_argument('--min_logstd', type = float, default = -20)
     parser.add_argument('--max_logstd', type = float, default = 2)
-    parser.add_argument('--action_bounding_func', type = str, default = 'tanh')
+    parser.add_argument('--action_bounding_func', type = str, default = '')
     parser.add_argument('--actor_lr', type = float, default = 1e-3)
     parser.add_argument('--critic_hidden_dims', type = list, default = [256, 256])
     parser.add_argument('--critic_lr', type = float, default = 1e-3)
@@ -37,7 +37,7 @@ def read_parser():
 
     # Training settings
     parser.add_argument('--num_steps', type = int, default = 500000)
-    parser.add_argument('--log_path', type = str, default = 'SAC/')
+    parser.add_argument('--log_path', type = str, default = 'Walker2d-v4-alphatuning/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
     parser.add_argument('--n_eval_epochs', default = 5)
@@ -51,9 +51,9 @@ def read_parser():
 def create(config):
     # Create environment
     env = make_mp_diffenvs(config.env_id, [{} for _ in range(config.n_envs)])
-    env.reset()
     obs_dim = env.get_env_attribute(0, 'observation_space').shape[0]
     act_dim = env.get_env_attribute(0, 'action_space').shape[0]
+    eval_env = gym.make(config.env_id)
 
     # Create buffer
     buffer = ReplayBuffer(config.buffer_capacity)
@@ -79,12 +79,13 @@ def create(config):
     if config.pretrain_sac_path is not None:
         policy.load(config.pretrain_sac_path)
 
-    return env, buffer, policy
+    return env, eval_env, buffer, policy
 
 
 
 def main(
-    env : SubprocVecEnv, 
+    env : SubprocVecEnv,
+    eval_env : gym.Env, 
     buffer : ReplayBuffer, 
     policy : SACPolicy, 
     config : argparse.Namespace
@@ -97,7 +98,7 @@ def main(
     # Evaluation before training
     total_steps = 0
     n_steps = env._max_episode_steps
-    eval_log = eval_policy(env, policy, config.n_eval_epochs)
+    eval_log = eval_policy(eval_env, policy, config.n_eval_epochs)
     eval_res, eval_res_str = eval_log.analysis()
     best_eval_rewards = eval_res['episode_reward_mean']
     summary.add(total_steps, eval_res, prefix = 'Eval/')
@@ -127,7 +128,7 @@ def main(
 
         # Evaluation
         if total_steps % config.eval_frequency == 0:
-            eval_log = eval_policy(env, policy, config.n_eval_epochs)
+            eval_log = eval_policy(eval_env, policy, config.n_eval_epochs)
             eval_res, eval_res_str = eval_log.analysis()
             summary.add(total_steps, eval_res, prefix = 'Eval/')
             print(f'Eval step {total_steps}: (Deterministic) {eval_res_str}')
@@ -155,5 +156,5 @@ def main(
 
 if __name__ == '__main__':
     config = read_parser()
-    env, buffer, policy = create(config)
-    main(env, buffer, policy, config)
+    env, eval_env, buffer, policy = create(config)
+    main(env, eval_env, buffer, policy, config)
