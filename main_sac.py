@@ -9,35 +9,36 @@ from data import ReplayBuffer
 from mpenv import make_mp_diffenvs, SubprocVecEnv
 from network import GaussianActorNet, CriticNet
 from utils import SummaryLogger, DataListLogger
+from modified_mujoco_envs import register_custom_mujocoenvs
 
 
 def read_parser():
     parser = argparse.ArgumentParser()
 
     # Environment settings
-    parser.add_argument('--env_id', type = str, default = 'Hopper-v4')
+    parser.add_argument('--env_id', type = str, default = 'ReducedObsSpaceHumanoidEnv-v0')
     parser.add_argument('--n_envs', type = int, default = 4)
     parser.add_argument('--buffer_capacity', type = int, default = 500000)
 
     # Policy settings
-    parser.add_argument('--device_str', type = str, default = 'auto', choices = ['auto', 'cpu', 'cuda'])
-    parser.add_argument('--actor_hidden_dims', type = list, default = [256, 256])
+    parser.add_argument('--device_str', type = str, default = 'cuda', choices = ['auto', 'cpu', 'cuda'])
+    parser.add_argument('--actor_hidden_dims', type = list, default = [400, 400])
     parser.add_argument('--min_logstd', type = float, default = -20)
     parser.add_argument('--max_logstd', type = float, default = 2)
     parser.add_argument('--action_bounding_func', type = str, default = '')
     parser.add_argument('--actor_lr', type = float, default = 1e-3)
-    parser.add_argument('--critic_hidden_dims', type = list, default = [256, 256])
+    parser.add_argument('--critic_hidden_dims', type = list, default = [400, 400])
     parser.add_argument('--critic_lr', type = float, default = 1e-3)
     parser.add_argument('--alpha', type = float, default = 0.2)
-    parser.add_argument('--log_alpha_lr', default = 1e-3)
-    parser.add_argument('--target_entropy', default = -3)
+    parser.add_argument('--log_alpha_lr', type = float, default = None)
+    parser.add_argument('--target_entropy', type = float, default = -3)
     parser.add_argument('--tau', type = float, default = 0.005)
     parser.add_argument('--gamma', type = float, default = 0.99)
-    parser.add_argument('--pretrain_sac_path', default = None)
+    parser.add_argument('--pretrain_sac_path', type = str, default = None)
 
     # Training settings
     parser.add_argument('--num_steps', type = int, default = 500000)
-    parser.add_argument('--log_path', type = str, default = 'Walker2d-v4-alphatuning/')
+    parser.add_argument('--log_path', type = str, default = 'ReducedObsSpaceHumanoidEnv-v0-noalphatuning/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
     parser.add_argument('--n_eval_epochs', default = 5)
@@ -49,6 +50,8 @@ def read_parser():
 
 
 def create(config):
+    register_custom_mujocoenvs()
+
     # Create environment
     env = make_mp_diffenvs(config.env_id, [{} for _ in range(config.n_envs)])
     obs_dim = env.get_env_attribute(0, 'observation_space').shape[0]
@@ -119,6 +122,7 @@ def main(
             one_time_train_log = policy.update(config.batch_size, buffer)
             for key, val in one_time_train_log.items():
                 train_log.add(key, val)
+        train_log.merge_logger(episode_log)
         train_res, _ = train_log.analysis()
 
         # Summary
