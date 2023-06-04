@@ -1,12 +1,15 @@
 import gymnasium as gym
 import numpy as np
 import torch
+import os
 from data import Batch
 from mpenv import SubprocVecEnv
 from typing import Union
 from basepolicy import BasePolicy
 from utils import DataListLogger
 from gymnasium.wrappers.monitoring.video_recorder import VideoRecorder
+from gymnasium.wrappers.record_video import RecordVideo
+from gymnasium.utils.save_video import save_video
 
 
 def collect_from_env(
@@ -106,14 +109,16 @@ def eval_policy(
 
 
 def record_video(
-    env: gym.Env,
+    env_id: str,
     policy : BasePolicy = None,
     is_eval : bool = True,
-    video_path = './eval.mp4'
+    video_dir = './eval/'
 ):
+    # Need X11 forwarding if run this function on server
+    env = gym.make(env_id, render_mode = 'rgb_array')
     n_steps = env._max_episode_steps
+    env = RecordVideo(env, video_dir)
     obs, _ = env.reset() # In Gymnasium, reset() function returns (obs, info)
-    recorder = VideoRecorder(env, video_path, enabled = True)
     total_reward, total_step = 0, 0
 
     for _ in range(n_steps):
@@ -125,21 +130,21 @@ def record_video(
                 act = act.cpu().numpy()
                 act = policy.map_action(act)
 
-        next_obs, reward, done, _, _ = env.step(act)
-        recorder.capture_frame()
+        next_obs, reward, done, truncated, _ = env.step(act)
         obs = np.copy(next_obs)
         total_reward += reward
         total_step += 1
 
-        if done:
+        if done or truncated:
             break
 
-    recorder.close()
-    recorder.enabled = False
     env.close()
 
-    print(f'Save the video to path {video_path}!')
-    print(f'Rewards = {total_reward} | Steps = {total_step}')
+    res_str = f'Rewards = {total_reward} | Steps = {total_step}'
+    print(res_str)
+
+    with open(os.path.join(video_dir, 'video_result.txt'), 'w') as f:
+        f.write(res_str)
 
 
 

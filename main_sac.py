@@ -30,7 +30,7 @@ def read_parser():
     parser.add_argument('--critic_hidden_dims', type = list, default = [400, 400])
     parser.add_argument('--critic_lr', type = float, default = 1e-3)
     parser.add_argument('--alpha', type = float, default = 0.2)
-    parser.add_argument('--log_alpha_lr', type = float, default = None)
+    parser.add_argument('--log_alpha_lr', type = float, default = 1e-3)
     parser.add_argument('--target_entropy', type = float, default = -3)
     parser.add_argument('--tau', type = float, default = 0.005)
     parser.add_argument('--gamma', type = float, default = 0.99)
@@ -38,7 +38,7 @@ def read_parser():
 
     # Training settings
     parser.add_argument('--num_steps', type = int, default = 500000)
-    parser.add_argument('--log_path', type = str, default = 'ReducedObsSpaceHumanoidEnv-v0-noalphatuning/')
+    parser.add_argument('--log_path', type = str, default = 'ReducedObsSpaceHumanoidEnv-v0-alphatuning/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
     parser.add_argument('--n_eval_epochs', default = 5)
@@ -149,16 +149,27 @@ def main(
     env.close()
 
 
-    # # Record video, currently not work on server
-    # env = gym.make(config.env_id, render_mode = 'human')
-    # policy.load(os.path.join(config.log_path, 'final_policy.pkl'))
-    # record_video(env, policy, is_eval = True, video_path = 'final_policy.mp4')
-    # policy.load(os.path.join(config.log_path, 'best_policy.pkl'))
-    # record_video(env, policy, is_eval = True, video_path = 'best_policy.mp4')
-    # env.close()
+
+def record_video_with_policy(root_path):
+    # Load configuration file
+    with open(os.path.join(root_path, 'config.yaml'), 'r') as f:
+        config = yaml.safe_load(f)
+        config = argparse.Namespace(**config)
+
+    video_root_path = os.path.join(root_path, 'video')
+    if not os.path.exists(video_root_path):
+        os.makedirs(video_root_path)
+
+    # Record video, currently not work on server
+    _, _, _, policy = create(config)
+    policy.load(os.path.join(root_path, 'final_policy.pkl'))
+    record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'final_policy'))
+    policy.load(os.path.join(root_path, 'best_policy.pkl'))
+    record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'best_policy'))
 
 
 if __name__ == '__main__':
     config = read_parser()
     env, eval_env, buffer, policy = create(config)
     main(env, eval_env, buffer, policy, config)
+    # record_video_with_policy(config.log_path)

@@ -17,6 +17,7 @@ class ReducedObsSpaceHumanoidEnv(HumanoidEnv):
     '''
         Only include the joint states in the observation space
     '''
+    
     def __init__(
         self, 
         forward_reward_weight = 1.25, 
