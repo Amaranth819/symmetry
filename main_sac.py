@@ -9,7 +9,7 @@ from data import ReplayBuffer
 from mpenv import make_mp_diffenvs, SubprocVecEnv
 from network import GaussianActorNet, CriticNet
 from utils import SummaryLogger, DataListLogger
-from modified_mujoco_envs import register_custom_mujocoenvs
+from register_customized_envs import register_customized_envs
 
 
 def read_parser():
@@ -50,7 +50,7 @@ def read_parser():
 
 
 def create(config):
-    register_custom_mujocoenvs()
+    register_customized_envs()
 
     # Create environment
     env = make_mp_diffenvs(config.env_id, [{} for _ in range(config.n_envs)])
@@ -169,7 +169,7 @@ def record_video_with_policy(root_path):
 
 
 if __name__ == '__main__':
-    config = read_parser()
-    env, eval_env, buffer, policy = create(config)
-    main(env, eval_env, buffer, policy, config)
-    # record_video_with_policy(config.log_path)
+    # config = read_parser()
+    # env, eval_env, buffer, policy = create(config)
+    # main(env, eval_env, buffer, policy, config)
+    record_video_with_policy('./exps/SAC/Hopper-v4-noalphatuning-2/')
