@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import gymnasium as gym
 from gymnasium.spaces import Box
@@ -14,6 +15,25 @@ DEFAULT_CAMERA_CONFIG = {
 }
 
 
+def obs_mirror_func(obs):
+    # Joint states
+    right = [2, 3, 4, 11, 12, 13]
+    left = [5, 6, 7, 14, 15, 16]
+    mirror_obs = copy.copy(obs)
+    mirror_obs[..., right], mirror_obs[..., left] = obs[..., left], obs[..., right]
+    if obs.size(-1) == 19:
+        # Phase variable
+        mirror_obs[..., -2], mirror_obs[..., -1] = mirror_obs[..., -1], mirror_obs[..., -2]
+    return mirror_obs
+
+
+def act_mirror_func(act):
+    right = [0, 1, 2]
+    left = [3, 4, 5]
+    mirror_act = copy.copy(act)
+    mirror_act[..., right], mirror_act[..., left] = act[..., left], act[..., right]
+    return mirror_act
+
 
 class SymmetricWalker2dEnv(Walker2dEnv):
     def __init__(
@@ -27,7 +47,7 @@ class SymmetricWalker2dEnv(Walker2dEnv):
         healthy_z_range = (0.8, 2.0), 
         healthy_angle_range = (-1.0, 1.0), 
         reset_noise_scale = 0.005, 
-        exclude_current_positions_from_observation = True, 
+        include_phase_into_obs_space = True,
         **kwargs
     ):
         utils.EzPickle.__init__(
@@ -39,7 +59,7 @@ class SymmetricWalker2dEnv(Walker2dEnv):
             healthy_z_range,
             healthy_angle_range,
             reset_noise_scale,
-            exclude_current_positions_from_observation,
+            exclude_current_positions_from_observation = True,
             **kwargs,
         )
 
@@ -54,20 +74,16 @@ class SymmetricWalker2dEnv(Walker2dEnv):
 
         self._reset_noise_scale = reset_noise_scale
 
-        self._exclude_current_positions_from_observation = (
-            exclude_current_positions_from_observation
-        )
-
         '''
-            Observation space: jpos + jvel + phase
+            Observation space: jpos + jvel (+ phase * 2) 
         '''
-        if exclude_current_positions_from_observation:
+        if include_phase_into_obs_space:
             observation_space = Box(
-                low=-np.inf, high=np.inf, shape=(17 + 1,), dtype=np.float64
+                low=-np.inf, high=np.inf, shape=(19,), dtype=np.float64
             )
         else:
             observation_space = Box(
-                low=-np.inf, high=np.inf, shape=(18 + 1,), dtype=np.float64
+                low=-np.inf, high=np.inf, shape=(17,), dtype=np.float64
             )
 
         self.metadata["render_fps"] = int(1.0 / (0.002 * frame_skip))
@@ -83,25 +99,7 @@ class SymmetricWalker2dEnv(Walker2dEnv):
         # Phase information
         self.period = period
         self.T = 0.0 # Total running time (truncated to 4 digits)
-
-        # Setup 
-        self.symmetrical_state_indices()
-        self.symmetrical_action_indices()
-
-
-    def symmetrical_state_indices(self):
-        self.right_state_indices = np.array([2, 3, 4, 11, 12, 13])
-        self.left_state_indices = np.array([5, 6, 7, 14, 15, 16])
-
-        if not self._exclude_current_positions_from_observation:
-            # Only x-position is excluded.
-            self.right_state_indices += 1
-            self.left_state_indices += 1
-
-
-    def symmetrical_action_indices(self):
-        self.right_action_indices = np.array([0, 1, 2])
-        self.left_action_indices = np.array([3, 4, 5])
+        self.include_phase_into_obs_space = include_phase_into_obs_space
 
 
     def reset_model(self):
@@ -110,23 +108,29 @@ class SymmetricWalker2dEnv(Walker2dEnv):
 
 
     def _get_phase(self):
-        return np.round(np.remainder(self.T, self.period), 4)
+        phi = np.round(np.remainder(self.T, self.period), 4) * np.pi
+        right_phi = np.sin(phi)
+        left_phi = np.cos(phi)
+        return phi, [right_phi, left_phi]
 
 
     def _get_obs(self):
         position = self.data.qpos.flat.copy()
+        position = position[1:]
         velocity = np.clip(self.data.qvel.flat.copy(), -10, 10)
+        phi, phases = self._get_phase()
 
-        if self._exclude_current_positions_from_observation:
-            position = position[1:]
-
-        phase = self._get_phase()
-
-        observation = np.concatenate((
-            position, 
-            velocity, 
-            [phase]
-        )).ravel()
+        if self.include_phase_into_obs_space:
+            observation = np.concatenate((
+                position, 
+                velocity, 
+                phases
+            )).ravel()
+        else:
+            observation = np.concatenate((
+                position, 
+                velocity, 
+            )).ravel()
         return observation
 
 
@@ -147,11 +151,13 @@ class SymmetricWalker2dEnv(Walker2dEnv):
         observation = self._get_obs()
         reward = rewards - costs
         terminated = self.terminated
+        phi, phases = self._get_phase()
         info = {
             "x_position": x_position_after,
             "x_velocity": x_velocity,
             "T" : self.T,
-            "phase" : observation[-1]
+            "phi" : phi,
+            "phases" : phases
         }
 
         if self.render_mode == "human":
@@ -164,9 +170,5 @@ class SymmetricWalker2dEnv(Walker2dEnv):
 
 
 if __name__ == '__main__':
-    env = SymmetricWalker2dEnv()
-    env.reset()
-
-    for i in range(1000):
-        _, _, _, _, info = env.step(env.action_space.sample())
-        print(i, info['T'], info['phase'])
+    env = SymmetricWalker2dEnv(include_phase_into_obs_space = True)
+    print(env.observation_space, env.action_space)
