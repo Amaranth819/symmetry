@@ -16,23 +16,37 @@ DEFAULT_CAMERA_CONFIG = {
 
 
 def obs_mirror_func(obs):
-    # Joint states
-    right = [2, 3, 4, 11, 12, 13]
-    left = [5, 6, 7, 14, 15, 16]
-    mirror_obs = copy.copy(obs)
-    mirror_obs[..., right], mirror_obs[..., left] = obs[..., left], obs[..., right]
+    # # Modify the leaf variable in-place
+    # # Joint states
+    # right = [2, 3, 4, 11, 12, 13]
+    # left = [5, 6, 7, 14, 15, 16]
+    # mirror_obs = copy.copy(obs)
+    # mirror_obs[..., right], mirror_obs[..., left] = obs[..., left], obs[..., right]
+    # if obs.size(-1) == 19:
+    #     # Phase variable
+    #     mirror_obs[..., -2], mirror_obs[..., -1] = mirror_obs[..., -1], mirror_obs[..., -2]
+    # return mirror_obs
+
+    # 6.7: Mirroring with indices
     if obs.size(-1) == 19:
-        # Phase variable
-        mirror_obs[..., -2], mirror_obs[..., -1] = mirror_obs[..., -1], mirror_obs[..., -2]
-    return mirror_obs
+        mirror_indices = [0, 1, 5, 6, 7, 2, 3, 4, 8, 9, 10, 14, 15, 16, 11, 12, 13, 18, 17]
+    else:
+        mirror_indices = [0, 1, 5, 6, 7, 2, 3, 4, 8, 9, 10, 14, 15, 16, 11, 12, 13]
+    return obs[..., mirror_indices]
+
 
 
 def act_mirror_func(act):
-    right = [0, 1, 2]
-    left = [3, 4, 5]
-    mirror_act = copy.copy(act)
-    mirror_act[..., right], mirror_act[..., left] = act[..., left], act[..., right]
-    return mirror_act
+    # # Modify the leaf variable in-place
+    # right = [0, 1, 2]
+    # left = [3, 4, 5]
+    # mirror_act = copy.copy(act)
+    # mirror_act[..., right], mirror_act[..., left] = act[..., left], act[..., right]
+    # return mirror_act
+
+    # 6.7: Mirroring with indices
+    mirror_indices = [3, 4, 5, 0, 1, 2]
+    return act[..., mirror_indices]
 
 
 class SymmetricWalker2dEnv(Walker2dEnv):
@@ -47,7 +61,7 @@ class SymmetricWalker2dEnv(Walker2dEnv):
         healthy_z_range = (0.8, 2.0), 
         healthy_angle_range = (-1.0, 1.0), 
         reset_noise_scale = 0.005, 
-        include_phase_into_obs_space = True,
+        include_phase_into_obs_space = False,
         **kwargs
     ):
         utils.EzPickle.__init__(

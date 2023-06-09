@@ -1,7 +1,5 @@
 import torch
-import torch.nn as nn
 import copy
-import math
 from sac import SACPolicy
 from data import Batch
 from network import GaussianActorNet, CriticNet
@@ -66,15 +64,28 @@ class SymmetricSACPolicy(SACPolicy):
         obs = batch.obs
         act_mu, act_std = self.actor.forward(obs)
         mirror_obs = self.obs_mirror_func(obs)
-        sym_act_mu, sym_act_std = self.actor.forward(mirror_obs)
-        with torch.no_grad():
-            sym_act_mu_gt = self.act_mirror_func(act_mu)
-            sym_act_std_gt = self.act_mirror_func(act_std)
-        symmetry_mu_loss = self.symmetry_loss_weight * torch.mean((sym_act_mu - sym_act_mu_gt)**2)
-        result_log['symmetry_mu_loss'] = symmetry_mu_loss.item()
-        symmetry_std_loss = self.symmetry_loss_weight * torch.mean((sym_act_std - sym_act_std_gt)**2)
-        result_log['symmetry_std_loss'] = symmetry_std_loss.item()
 
+        # # 6.4 Symmetry loss 1: || M_a(\pi(s)) - \pi( M_s(s) ) ||^2_2
+        # sym_act_mu, sym_act_std = self.actor.forward(mirror_obs)
+        # with torch.no_grad():
+        #     sym_act_mu_gt = self.act_mirror_func(act_mu)
+        #     sym_act_std_gt = self.act_mirror_func(act_std)
+        # symmetry_mu_loss = self.symmetry_loss_weight * torch.mean((sym_act_mu - sym_act_mu_gt)**2)
+        # result_log['symmetry_mu_loss'] = symmetry_mu_loss.item()
+        # symmetry_std_loss = self.symmetry_loss_weight * torch.mean((sym_act_std - sym_act_std_gt)**2)
+        # result_log['symmetry_std_loss'] = symmetry_std_loss.item()
+        # total_actor_loss = actor_loss + symmetry_mu_loss + symmetry_std_loss
+        # result_log['total_actor_loss'] = total_actor_loss.item()
+
+        # 6.7 Symmetry loss 2: || \pi(s) - M_a( \pi( M_s(s) ) ) ||^2_2
+        # This requires the mirroring function to not modify the leaf variable in-place.
+        sym_act_mu, sym_act_std = self.actor.forward(mirror_obs)
+        rev_sym_act_mu = self.act_mirror_func(sym_act_mu)
+        rev_sym_act_std = self.act_mirror_func(sym_act_std)
+        symmetry_mu_loss = self.symmetry_loss_weight * torch.mean((act_mu - rev_sym_act_mu)**2)
+        result_log['symmetry_mu_loss'] = symmetry_mu_loss.item()
+        symmetry_std_loss = self.symmetry_loss_weight * torch.mean((act_std - rev_sym_act_std)**2)
+        result_log['symmetry_std_loss'] = symmetry_std_loss.item()
         total_actor_loss = actor_loss + symmetry_mu_loss + symmetry_std_loss
         result_log['total_actor_loss'] = total_actor_loss.item()
 

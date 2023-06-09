@@ -21,24 +21,54 @@ def mass_center(model, data):
 
 
 def obs_mirror_func(obs):
-    # Joint states
-    right = [8, 9, 10, 11, 16, 17, 18, 31, 32, 33, 34, 39, 40, 41]
-    left = [12, 13, 14, 15, 19, 20, 21, 35, 36, 37, 38, 42, 43, 44]
-    mirror_obs = copy.copy(obs)
-    mirror_obs[..., right], mirror_obs[..., left] = obs[..., left], obs[..., right]
-    # Phase variable
-    if obs.size(-1) == 47:
-        mirror_obs[..., -2], mirror_obs[..., -1] = mirror_obs[..., -1], mirror_obs[..., -2]
-    return mirror_obs
+    # # Joint states
+    # right = [8, 9, 10, 11, 16, 17, 18, 31, 32, 33, 34, 39, 40, 41]
+    # left = [12, 13, 14, 15, 19, 20, 21, 35, 36, 37, 38, 42, 43, 44]
+    # mirror_obs = copy.copy(obs)
+    # mirror_obs[..., right], mirror_obs[..., left] = obs[..., left], obs[..., right]
+    # # Phase variable
+    # if obs.size(-1) == 47:
+    #     mirror_obs[..., -2], mirror_obs[..., -1] = mirror_obs[..., -1], mirror_obs[..., -2]
+    # return mirror_obs
+
+    # 6.7
+    if obs.size(-1) == 45:
+        mirror_indices = [
+            0, 1, 2, 3, 4, 5, 6, 7, 
+            12, 13, 14, 15, 8, 9, 10, 11, 
+            19, 20, 21, 16, 17, 18,
+            22, 23, 24, 25, 26, 27, 28, 29, 30, 
+            35, 36, 37, 38, 31, 32, 33, 34,
+            42, 43, 44, 39, 40, 41
+        ]
+    else:
+        mirror_indices = [
+            0, 1, 2, 3, 4, 5, 6, 7, 
+            12, 13, 14, 15, 8, 9, 10, 11, 
+            19, 20, 21, 16, 17, 18,
+            22, 23, 24, 25, 26, 27, 28, 29, 30, 
+            35, 36, 37, 38, 31, 32, 33, 34,
+            42, 43, 44, 39, 40, 41,
+            46, 45
+        ]
+    return obs[..., mirror_indices]
 
 
 def act_mirror_func(act):
-    # Joint 6 - 22
-    right = [3, 4, 5, 6, 11, 12, 13]
-    left = [7, 8, 9, 10, 14, 15, 16]
-    mirror_act = copy.copy(act)
-    mirror_act[..., right], mirror_act[..., left] = act[..., left], act[..., right]
-    return mirror_act
+    # # Joint 6 - 22
+    # right = [3, 4, 5, 6, 11, 12, 13]
+    # left = [7, 8, 9, 10, 14, 15, 16]
+    # mirror_act = copy.copy(act)
+    # mirror_act[..., right], mirror_act[..., left] = act[..., left], act[..., right]
+    # return mirror_act
+
+    # 6.7
+    mirror_indices = [
+        0, 1, 2,
+        7, 8, 9, 10, 3, 4, 5, 6,
+        14, 15, 16, 11, 12, 13
+    ]
+    return act[..., mirror_indices]
 
 
 class SymmetricHumanoidEnv(HumanoidEnv):
@@ -182,4 +212,4 @@ if __name__ == '__main__':
     obs, _ = env.reset()
     for i in range(1000):
         _, _, _, _, info = env.step(env.action_space.sample())
-        print(i, info["T"], info["phase"])
+        print(i, info["T"], info["phases"])

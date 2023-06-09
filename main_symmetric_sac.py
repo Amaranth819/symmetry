@@ -26,19 +26,19 @@ def read_parser():
     parser = argparse.ArgumentParser()
 
     # Environment settings
-    parser.add_argument('--env_id', type = str, default = 'SymmetricWalker2dEnv-v0')
+    parser.add_argument('--env_id', type = str, default = 'SymmetricHumanoidEnv-v0')
     parser.add_argument('--n_envs', type = int, default = 4)
-    parser.add_argument('--buffer_capacity', type = int, default = 500000)
+    parser.add_argument('--buffer_capacity', type = int, default = 700000)
 
     # Policy settings
     parser.add_argument('--device_str', type = str, default = 'cuda', choices = ['auto', 'cpu', 'cuda'])
-    parser.add_argument('--symmetry_loss_weight', type = float, default = 4.0)
-    parser.add_argument('--actor_hidden_dims', type = list, default = [256, 256])
+    parser.add_argument('--symmetry_loss_weight', type = float, default = 50.0)
+    parser.add_argument('--actor_hidden_dims', type = list, default = [400, 400])
     parser.add_argument('--min_logstd', type = float, default = -20)
     parser.add_argument('--max_logstd', type = float, default = 2)
     parser.add_argument('--action_bounding_func', type = str, default = '')
     parser.add_argument('--actor_lr', type = float, default = 1e-3)
-    parser.add_argument('--critic_hidden_dims', type = list, default = [256, 256])
+    parser.add_argument('--critic_hidden_dims', type = list, default = [400, 400])
     parser.add_argument('--critic_lr', type = float, default = 1e-3)
     parser.add_argument('--alpha', type = float, default = 0.2)
     parser.add_argument('--log_alpha_lr', type = float, default = None)
@@ -49,7 +49,7 @@ def read_parser():
 
     # Training settings
     parser.add_argument('--num_steps', type = int, default = 500000)
-    parser.add_argument('--log_path', type = str, default = 'SymmetricWalker2dEnv-v0-withphase-noalphatuning/')
+    parser.add_argument('--log_path', type = str, default = 'SymmetricHumanoidEnv-v0-noalphatuning/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
     parser.add_argument('--n_eval_epochs', default = 5)
@@ -176,15 +176,24 @@ def record_video_with_policy(root_path, use_final_policy = True, use_best_policy
     # Record video, currently not work on server
     _, _, _, policy = create(config)
     if use_final_policy:
-        policy.load(os.path.join(root_path, 'final_policy.pkl'))
-        record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'final_policy'))
+        final_policy_path = os.path.join(root_path, 'final_policy.pkl')
+        if os.path.exists(final_policy_path):
+            policy.load(final_policy_path)
+            record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'final_policy'))
+        else:
+            print('Final policy does not exist!')
+        
     if use_best_policy:
-        policy.load(os.path.join(root_path, 'best_policy.pkl'))
-        record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'best_policy'))
+        best_policy_path = os.path.join(root_path, 'best_policy.pkl')
+        if os.path.exists(best_policy_path):
+            policy.load(best_policy_path)
+            record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'best_policy'))
+        else:
+            print('Best policy does not exist!')
 
 
 if __name__ == '__main__':
     config = read_parser()
-    env, eval_env, buffer, policy = create(config)
-    main(env, eval_env, buffer, policy, config)
-    # record_video_with_policy('./SymmetricWalker2dEnv-v0-withphase-noalphatuning/', use_final_policy = True, use_best_policy = True)
+    # env, eval_env, buffer, policy = create(config)
+    # main(env, eval_env, buffer, policy, config)
+    record_video_with_policy(config.log_path, use_final_policy = True, use_best_policy = True)
