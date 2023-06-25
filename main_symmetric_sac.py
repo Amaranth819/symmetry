@@ -38,8 +38,8 @@ def read_parser():
     parser.add_argument('--pretrain_sac_path', type = str, default = None)
 
     # Training settings
-    parser.add_argument('--num_steps', type = int, default = 1500000)
-    parser.add_argument('--log_path', type = str, default = 'SymmetricHumanoidEnv-v0-correctmirror/')
+    parser.add_argument('--num_steps', type = int, default = 600000)
+    parser.add_argument('--log_path', type = str, default = 'SymmetricHumanoidEnv-v0-correctmirror-2/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
     parser.add_argument('--n_eval_epochs', default = 50)
@@ -188,6 +188,6 @@ def record_video_with_policy(root_path, use_final_policy = True, use_best_policy
 
 if __name__ == '__main__':
     config = read_parser()
-    env, eval_env, buffer, policy = create(config)
-    main(env, eval_env, buffer, policy, config)
-    # record_video_with_policy(config.log_path, use_final_policy = True, use_best_policy = True, plot_info = True)
+    # env, eval_env, buffer, policy = create(config)
+    # main(env, eval_env, buffer, policy, config)
+    record_video_with_policy(config.log_path, use_final_policy = True, use_best_policy = True, plot_info = True)

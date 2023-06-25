@@ -41,8 +41,8 @@ def register_customized_envs():
             'left_indices' : [12, 13, 14, 15, 19, 20, 21, 35, 36, 37, 38, 42, 43, 44, 46]
         },
         act_indices_dict = {
-            'common_indices' : [1],
-            'negated_indices' : [0, 2],
+            'common_indices' : [0],
+            'negated_indices' : [1, 2],
             'right_indices' : [3, 4, 5, 6, 11, 12, 13],
             'left_indices' : [7, 8, 9, 10, 14, 15, 16]
         },

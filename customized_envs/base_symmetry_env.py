@@ -56,7 +56,7 @@ class BaseSymmetryEnv(gym.Wrapper):
     
 
     def render(self, *args, **kwargs):
-        self.env.render(*args, **kwargs)
+        return self.env.render(*args, **kwargs)
     
     
 
