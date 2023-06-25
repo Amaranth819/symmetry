@@ -1,12 +1,15 @@
-import gymnasium as gym
-import time
+from scipy.stats import vonmises
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+
 
 if __name__ == '__main__':
-    env = gym.make('Walker2d-v4', render_mode = 'human')
-
-    env.reset()
-    for _ in range(1000):
-        env.step(env.action_space.sample())
-        time.sleep(0.01)
-        env.render()
-    env.close()
+    a = -np.pi
+    b = np.pi
+    xs = np.linspace(a, b, 100)
+    ys = vonmises.pdf(xs, a, b)
+    plt.plot(xs, ys)
+    plt.savefig('vonmise.png')
+    plt.close()

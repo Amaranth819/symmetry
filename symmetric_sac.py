@@ -43,14 +43,9 @@ class SymmetricSACPolicy(SACPolicy):
 
 
     def learn(self, batch: Batch):
-        # Summary
-        result_log = {}
-
         # Critic
         critic1_loss = self._update_critic(batch, self.critic1, self.critic1_optim)
-        result_log['critic1_loss'] = critic1_loss.item()
         critic2_loss = self._update_critic(batch, self.critic2, self.critic2_optim)
-        result_log['critic2_loss'] = critic2_loss.item()
 
         # Actor 
         obs = batch.obs
@@ -58,41 +53,34 @@ class SymmetricSACPolicy(SACPolicy):
         current_q1 = self.critic1.forward(obs, new_act)
         current_q2 = self.critic2.forward(obs, new_act)
         actor_loss = (self.alpha * new_act_log_prob - torch.min(current_q1, current_q2)).mean()
-        result_log['actor_loss'] = actor_loss.item()
 
         # Symmetry loss for actor
         obs = batch.obs
         act_mu, act_std = self.actor.forward(obs)
-        mirror_obs = self.obs_mirror_func(obs)
-
-        # # 6.4 Symmetry loss 1: || M_a(\pi(s)) - \pi( M_s(s) ) ||^2_2
-        # sym_act_mu, sym_act_std = self.actor.forward(mirror_obs)
-        # with torch.no_grad():
-        #     sym_act_mu_gt = self.act_mirror_func(act_mu)
-        #     sym_act_std_gt = self.act_mirror_func(act_std)
-        # symmetry_mu_loss = self.symmetry_loss_weight * torch.mean((sym_act_mu - sym_act_mu_gt)**2)
-        # result_log['symmetry_mu_loss'] = symmetry_mu_loss.item()
-        # symmetry_std_loss = self.symmetry_loss_weight * torch.mean((sym_act_std - sym_act_std_gt)**2)
-        # result_log['symmetry_std_loss'] = symmetry_std_loss.item()
-        # total_actor_loss = actor_loss + symmetry_mu_loss + symmetry_std_loss
-        # result_log['total_actor_loss'] = total_actor_loss.item()
 
         # 6.7 Symmetry loss 2: || \pi(s) - M_a( \pi( M_s(s) ) ) ||^2_2
         # This requires the mirroring function to not modify the leaf variable in-place.
+        mirror_obs = self.obs_mirror_func(obs)
         sym_act_mu, sym_act_std = self.actor.forward(mirror_obs)
         rev_sym_act_mu = self.act_mirror_func(sym_act_mu)
         rev_sym_act_std = self.act_mirror_func(sym_act_std)
         symmetry_mu_loss = self.symmetry_loss_weight * torch.mean((act_mu - rev_sym_act_mu)**2)
-        result_log['symmetry_mu_loss'] = symmetry_mu_loss.item()
         symmetry_std_loss = self.symmetry_loss_weight * torch.mean((act_std - rev_sym_act_std)**2)
-        result_log['symmetry_std_loss'] = symmetry_std_loss.item()
         total_actor_loss = actor_loss + symmetry_mu_loss + symmetry_std_loss
-        result_log['total_actor_loss'] = total_actor_loss.item()
+        
 
         self.actor_optim.zero_grad()
         total_actor_loss.backward()
         self.actor_optim.step()
-        
+
+        # Summary
+        result_log = {}
+        result_log['critic1_loss'] = critic1_loss.detach().item()
+        result_log['critic2_loss'] = critic2_loss.detach().item()
+        result_log['actor_loss'] = actor_loss.detach().item()
+        result_log['symmetry_mu_loss'] = symmetry_mu_loss.detach().item()
+        result_log['symmetry_std_loss'] = symmetry_std_loss.detach().item()
+        result_log['total_actor_loss'] = total_actor_loss.detach().item()
 
 
         # Alpha
@@ -102,7 +90,7 @@ class SymmetricSACPolicy(SACPolicy):
             alpha_loss.backward()
             self.log_alpha_optimizer.step()
             self.alpha = self.log_alpha.detach().exp().item()
-            result_log['alpha_loss'] = alpha_loss.item()
+            result_log['alpha_loss'] = alpha_loss.detach().item()
             result_log['alpha'] = self.alpha
             result_log['log_alpha'] = self.log_alpha.detach().item()
 

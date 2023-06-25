@@ -7,6 +7,21 @@ from typing import Any, List, Union
 IndexType = Union[slice, int, np.ndarray, List[int]]
 
 
+def _create_placeholder(inst, size):
+    if isinstance(inst, np.ndarray):
+        return np.zeros(shape = [size, *inst.shape[1:]], dtype = np.float32)
+    elif isinstance(inst, torch.Tensor):
+        return torch.zeros(size = [size, *inst.size()[1:]], device = inst.device, dtype = inst.dtype)
+    elif isinstance(inst, Batch):
+        holder = Batch()
+        for key, val in inst.items():
+            holder[key] = _create_placeholder(val, size)
+        return holder
+    else:
+        raise NotImplementedError
+
+
+
 '''
     Data batch
     Reference: https://tianshou.readthedocs.io/en/master/_modules/tianshou/data/batch.html#Batch
@@ -18,7 +33,7 @@ class Batch(object):
                 self.__dict__[key] = val
             else:
                 if isinstance(val, dict):
-                    # To load "Batch" from existing files.
+                    # To load "Batch" from an existing dictionary.
                     self.__dict__[key] = Batch(**val)
                 else:
                     raise TypeError('Not supported data structure type!')
@@ -62,22 +77,26 @@ class Batch(object):
                     new_batch.__dict__[key] = val[ptr]
                 return new_batch
             else:
-                raise IndexError('Cannot access empty item!')
+                raise IndexError('Cannot access the empty batch!')
     
 
-    def __setitem__(self, ptr : Union[str, IndexType], item : Any):
+    def __setitem__(self, ptr : Union[str, IndexType], obj : "Batch"):
         if isinstance(ptr, str):
-            self.__dict__[ptr] = item
-        else:
-            if len(self.keys()) > 0:
-                for key in self.keys():
-                    try:
-                        self.__dict__[key][ptr] = item[key]
-                    except:
-                        raise TypeError(f'Incorrect data type: key {key}!')
-            else:
-                raise IndexError('Cannot index empty item!')
-
+            self.__dict__[ptr] = obj
+            return
+        
+        if not set(obj.keys()).issubset(self.__dict__.keys()):
+            raise KeyError('Not existing key!')
+        for key, val in obj.items():
+            try:
+                self.__dict__[key][ptr] = obj[key]
+            except KeyError:
+                if isinstance(val, Batch):
+                    self.__dict__[key][ptr] = Batch()
+                else:
+                    # np.ndarray or torch.Tensor
+                    self.__dict__[key][ptr] = 0
+            
 
     def __repr__(self) -> str:
         res_str = []
@@ -213,8 +232,6 @@ class Batch(object):
 
 
 
-
-
 '''
     Replay buffer
 '''
@@ -230,11 +247,12 @@ class BaseBuffer(object):
     def reset(self):
         self.buffer = Batch()
         self.curr_index = 0
+        self.curr_size = 0
 
 
     @property
     def size(self):
-        return len(self.buffer)
+        return self.curr_size
 
 
     def add(self, batch):
@@ -256,6 +274,11 @@ class BaseBuffer(object):
         if self.curr_index < self.size:
             self.curr_index = self.capacity
         self.capacity = new_capacity
+
+        # Copy the buffer
+        old_buffer = copy.deepcopy(self.buffer)
+        self.buffer = _create_placeholder(old_buffer, self.capacity)
+        self.buffer[:self.curr_index] = old_buffer
 
 
     def save_file(self, file_path):
@@ -283,11 +306,17 @@ class ReplayBuffer(BaseBuffer):
         assert self.necessary_keys.issubset(set(batch.keys()))
         
         for single_batch in batch.split(1, False):
-            if self.size < self.capacity:
-                self.buffer.cat_([single_batch])
-            else:
+            try:
                 self.buffer[self.curr_index] = single_batch
+            except KeyError:
+                if self.buffer.is_empty():
+                    self.buffer = _create_placeholder(batch, self.capacity)
+                    self.buffer[self.curr_index] = single_batch
+                else:
+                    raise NotImplementedError
             self.curr_index = (self.curr_index + 1) % self.capacity
+            if self.curr_size < self.capacity:
+                self.curr_size += 1
 
 
 
@@ -295,19 +324,24 @@ class ReplayBuffer(BaseBuffer):
 
 
 if __name__ == '__main__':
-    batch0 = Batch(a = np.random.randn(2, 2), b = torch.randn(2, 4))
-    batch1 = Batch(d = batch0, e = np.random.randn(2, 3), f = torch.randn(2, 3))
+    batch = Batch(
+        obs = np.random.randn(3, 4),
+        next_obs = np.random.randn(3, 4),
+        act = np.random.randn(3, 2),
+        rew = np.random.randn(3),
+        done = np.random.randn(3)
+    )
 
     buffer = ReplayBuffer(5)
     for _ in range(3):
-        buffer.add(batch1)
-        print(buffer.buffer)
+        buffer.add(batch)
+        print(buffer.buffer.done)
 
     buffer.extend_buffer(10)
     for _ in range(3):
-        buffer.add(batch1)
-        print(buffer.buffer)
+        buffer.add(batch)
+        print(buffer.buffer.done)
 
-    buffer.save_file('test.pkl')
-    buffer.load_file('test.pkl')
-    print(buffer.curr_index, buffer.capacity, buffer.buffer)
+    # buffer.save_file('test.pkl')
+    # buffer.load_file('test.pkl')
+    # print(buffer.curr_index, buffer.capacity, buffer.buffer)

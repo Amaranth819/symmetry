@@ -6,20 +6,10 @@ import torch
 from symmetric_sac import SymmetricSACPolicy
 from collect import collect_from_env, eval_policy, record_video
 from data import ReplayBuffer
-from mpenv import make_mp_diffenvs, SubprocVecEnv
-from network import GaussianActorNet, CriticNet
+# from mpenv import make_mp_diffenvs, SubprocVecEnv
+from network import GaussianActorNet, CriticNet, SymmetricPhaseNet
 from utils import SummaryLogger, DataListLogger
 from register_customized_envs import register_customized_envs
-from customized_envs import SymmetricWalker2dEnv, SymmetricHumanoidEnv
-
-
-def get_mirror_functions(env_id):
-    func_dict = {
-        'SymmetricWalker2dEnv-v0' : (SymmetricWalker2dEnv.obs_mirror_func, SymmetricWalker2dEnv.act_mirror_func),
-        'SymmetricHumanoidEnv-v0' : (SymmetricHumanoidEnv.obs_mirror_func, SymmetricHumanoidEnv.act_mirror_func)
-    }
-    return func_dict[env_id]
-
 
 
 def read_parser():
@@ -27,12 +17,12 @@ def read_parser():
 
     # Environment settings
     parser.add_argument('--env_id', type = str, default = 'SymmetricHumanoidEnv-v0')
-    parser.add_argument('--n_envs', type = int, default = 4)
-    parser.add_argument('--buffer_capacity', type = int, default = 700000)
+    parser.add_argument('--n_envs', type = int, default = 1)
+    parser.add_argument('--buffer_capacity', type = int, default = 500000)
 
     # Policy settings
     parser.add_argument('--device_str', type = str, default = 'cuda', choices = ['auto', 'cpu', 'cuda'])
-    parser.add_argument('--symmetry_loss_weight', type = float, default = 50.0)
+    parser.add_argument('--symmetry_loss_weight', type = float, default = 1.0)
     parser.add_argument('--actor_hidden_dims', type = list, default = [400, 400])
     parser.add_argument('--min_logstd', type = float, default = -20)
     parser.add_argument('--max_logstd', type = float, default = 2)
@@ -48,11 +38,11 @@ def read_parser():
     parser.add_argument('--pretrain_sac_path', type = str, default = None)
 
     # Training settings
-    parser.add_argument('--num_steps', type = int, default = 500000)
-    parser.add_argument('--log_path', type = str, default = 'SymmetricHumanoidEnv-v0-noalphatuning/')
+    parser.add_argument('--num_steps', type = int, default = 1500000)
+    parser.add_argument('--log_path', type = str, default = 'SymmetricHumanoidEnv-v0-correctmirror/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
-    parser.add_argument('--n_eval_epochs', default = 5)
+    parser.add_argument('--n_eval_epochs', default = 50)
     parser.add_argument('--batch_size', type = int, default = 256)
 
     config = parser.parse_args()
@@ -64,9 +54,14 @@ def create(config):
     register_customized_envs()
 
     # Create environment
-    env = make_mp_diffenvs(config.env_id, [{} for _ in range(config.n_envs)])
-    obs_dim = env.get_env_attribute(0, 'observation_space').shape[0]
-    act_dim = env.get_env_attribute(0, 'action_space').shape[0]
+    if config.n_envs > 1:
+        env = gym.vector.make(config.env_id, num_envs = config.n_envs)
+        obs_dim = env.single_observation_space.shape[0]
+        act_dim = env.single_action_space.shape[0]
+    else:
+        env = gym.make(config.env_id)
+        obs_dim = env.observation_space.shape[0]
+        act_dim = env.action_space.shape[0]
     eval_env = gym.make(config.env_id)
 
     # Create buffer
@@ -83,9 +78,8 @@ def create(config):
     critic2_optim = torch.optim.Adam(critic2.parameters(), lr = config.critic_lr)
 
     # Policy
-    obs_mirror_func, act_mirror_func = get_mirror_functions(config.env_id)
     policy = SymmetricSACPolicy(
-        obs_mirror_func, act_mirror_func, config.symmetry_loss_weight,
+        env.obs_mirror_func, env.act_mirror_func, config.symmetry_loss_weight,
         actor, actor_optim,
         critic1, critic1_optim,
         critic2, critic2_optim,
@@ -100,7 +94,7 @@ def create(config):
 
 
 def main(
-    env : SubprocVecEnv,
+    env,
     eval_env : gym.Env, 
     buffer : ReplayBuffer, 
     policy : SymmetricSACPolicy, 
@@ -113,7 +107,7 @@ def main(
 
     # Evaluation before training
     total_steps = 0
-    n_steps = env._max_episode_steps
+    n_steps = eval_env._max_episode_steps
     eval_log = eval_policy(eval_env, policy, config.n_eval_epochs)
     eval_res, eval_res_str = eval_log.analysis()
     best_eval_rewards = eval_res['episode_reward_mean']
@@ -163,7 +157,7 @@ def main(
 
 
 
-def record_video_with_policy(root_path, use_final_policy = True, use_best_policy = True):
+def record_video_with_policy(root_path, use_final_policy = True, use_best_policy = True, plot_info = False):
     # Load configuration file
     with open(os.path.join(root_path, 'config.yaml'), 'r') as f:
         config = yaml.safe_load(f)
@@ -179,7 +173,7 @@ def record_video_with_policy(root_path, use_final_policy = True, use_best_policy
         final_policy_path = os.path.join(root_path, 'final_policy.pkl')
         if os.path.exists(final_policy_path):
             policy.load(final_policy_path)
-            record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'final_policy'))
+            record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'final_policy'), plot_info = plot_info)
         else:
             print('Final policy does not exist!')
         
@@ -187,13 +181,13 @@ def record_video_with_policy(root_path, use_final_policy = True, use_best_policy
         best_policy_path = os.path.join(root_path, 'best_policy.pkl')
         if os.path.exists(best_policy_path):
             policy.load(best_policy_path)
-            record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'best_policy'))
+            record_video(config.env_id, policy, is_eval = True, video_dir = os.path.join(video_root_path, 'best_policy'), plot_info = plot_info)
         else:
             print('Best policy does not exist!')
 
 
 if __name__ == '__main__':
     config = read_parser()
-    # env, eval_env, buffer, policy = create(config)
-    # main(env, eval_env, buffer, policy, config)
-    record_video_with_policy(config.log_path, use_final_policy = True, use_best_policy = True)
+    env, eval_env, buffer, policy = create(config)
+    main(env, eval_env, buffer, policy, config)
+    # record_video_with_policy(config.log_path, use_final_policy = True, use_best_policy = True, plot_info = True)
