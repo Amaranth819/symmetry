@@ -1,6 +1,7 @@
 import gymnasium as gym    
-from customized_envs.SymmetricHumanoidEnv_v0 import SymmetricHumanoidEnv_v0
 from customized_envs.base_symmetry_env import BaseSymmetryEnv
+from customized_envs.SymmetricHumanoidEnv_v0 import SymmetricHumanoidEnv_v0
+from customized_envs.SymmetricHumanoidEnv_v2 import SymmetricHumanoidEnv_v2
 
 
 def register_symmetric_env(env_id, env_class, obs_indices_dict, act_indices_dict, max_episode_steps = 1000):
@@ -36,6 +37,24 @@ def register_customized_envs():
         env_class = SymmetricHumanoidEnv_v0,
         obs_indices_dict = {
             'common_indices' : [0, 1, 3, 6, 22, 24, 26, 29],
+            'negated_indices' : [2, 4, 5, 7, 23, 25, 27, 28, 30],
+            'right_indices' : [8, 9, 10, 11, 16, 17, 18, 31, 32, 33, 34, 39, 40, 41, 45],
+            'left_indices' : [12, 13, 14, 15, 19, 20, 21, 35, 36, 37, 38, 42, 43, 44, 46]
+        },
+        act_indices_dict = {
+            'common_indices' : [0],
+            'negated_indices' : [1, 2],
+            'right_indices' : [3, 4, 5, 6, 11, 12, 13],
+            'left_indices' : [7, 8, 9, 10, 14, 15, 16]
+        },
+        max_episode_steps = 1000
+    )
+
+    register_symmetric_env(
+        env_id = 'SymmetricHumanoidEnv-v2',
+        env_class = SymmetricHumanoidEnv_v2,
+        obs_indices_dict = {
+            'common_indices' : [0, 1, 3, 6, 22, 24, 26, 29, 47, 48],
             'negated_indices' : [2, 4, 5, 7, 23, 25, 27, 28, 30],
             'right_indices' : [8, 9, 10, 11, 16, 17, 18, 31, 32, 33, 34, 39, 40, 41, 45],
             'left_indices' : [12, 13, 14, 15, 19, 20, 21, 35, 36, 37, 38, 42, 43, 44, 46]

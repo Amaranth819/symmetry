@@ -23,7 +23,7 @@ class BaseSymmetryEnv(gym.Wrapper):
     
 
     def _mirror_func(self, x, indices_dict, mirrored_indices):
-        # For the quaternion orientation in observation, [x,y,z,w] -> [x,-y,z,-w] since [roll,pitch,yaw] -> [-roll,pitch,-yaw].
+        # For the quaternion orientation in observation, [w,x,y,z] -> [-w,x,-y,z] since [roll,pitch,yaw] -> [-roll,pitch,-yaw].
         common_x = x[..., indices_dict['common_indices']]
         negated_x = x[..., indices_dict['negated_indices']]
         right_x = x[..., indices_dict['right_indices']]

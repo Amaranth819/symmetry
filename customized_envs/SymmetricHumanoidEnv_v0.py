@@ -21,6 +21,11 @@ def mass_center(model, data):
 
 
 class SymmetricHumanoidEnv_v0(HumanoidEnv):
+    '''
+        The issues in mirroring:
+        1. qpos[3:7] (obs[1:5]) represents [w,x,y,z], not [x,y,z,w] as in the document.
+        2. [w,x,y,z] -> [w,-x,y,-z] when mirroring with respect to xz plane
+    '''
     def __init__(
         self, 
         period = 1.0,
@@ -145,11 +150,34 @@ class SymmetricHumanoidEnv_v0(HumanoidEnv):
 
 
 if __name__ == '__main__':
-    # env = SymmetricHumanoidEnv()
-    # obs, _ = env.reset()
-    # print(obs)
-    # print(env.obs_mirror_func(obs))
-    # for i in range(1000):
-    #     _, _, _, _, info = env.step(env.action_space.sample())
-    #     print(i, info["T"], info["phases"])
-    pass
+    # Test mirroring orientation with respect to xz plane
+    import time
+    env = SymmetricHumanoidEnv_v0(render_mode = 'human')
+    qpos = np.copy(env.init_qpos)
+    qvel = np.copy(env.init_qvel)
+
+    def mirror_func(ori):
+        mirror_ori = np.copy(ori)
+        mirror_ori[1] *= -1
+        mirror_ori[3] *= -1
+        return mirror_ori
+
+    # [w, x, y, z]
+    # Euler to quaternion converter: https://www.andre-gaschler.com/rotationconverter/
+    # ori = np.array([0.8607347, 0.0606027, 0.1546554, 0.481191 ])
+    # qpos[3:7] = ori
+
+    # Linear / angular velocity of torso
+    qvel[:6] = [0, 0, 0, 0, 0, 5]
+
+    env.set_state(qpos, qvel)
+    for i in range(400):
+        env.step(np.zeros_like(env.action_space.sample())) # Comment if testing qpos
+        env.render()
+        time.sleep(0.01)
+
+        if i % 200 == 199:
+            # qpos[3:7] = mirror_func(ori)
+            env.set_state(qpos, qvel)
+            env.step(np.zeros_like(env.action_space.sample()))
+    env.close()

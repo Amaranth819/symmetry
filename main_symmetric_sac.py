@@ -7,7 +7,7 @@ from symmetric_sac import SymmetricSACPolicy
 from collect import collect_from_env, eval_policy, record_video
 from data import ReplayBuffer
 # from mpenv import make_mp_diffenvs, SubprocVecEnv
-from network import GaussianActorNet, CriticNet, SymmetricPhaseNet
+from network import GaussianActorNet, CriticNet
 from utils import SummaryLogger, DataListLogger
 from register_customized_envs import register_customized_envs
 
@@ -22,7 +22,7 @@ def read_parser():
 
     # Policy settings
     parser.add_argument('--device_str', type = str, default = 'cuda', choices = ['auto', 'cpu', 'cuda'])
-    parser.add_argument('--symmetry_loss_weight', type = float, default = 1.0)
+    parser.add_argument('--symmetry_loss_weight', type = float, default = 4.0)
     parser.add_argument('--actor_hidden_dims', type = list, default = [400, 400])
     parser.add_argument('--min_logstd', type = float, default = -20)
     parser.add_argument('--max_logstd', type = float, default = 2)
@@ -38,8 +38,8 @@ def read_parser():
     parser.add_argument('--pretrain_sac_path', type = str, default = None)
 
     # Training settings
-    parser.add_argument('--num_steps', type = int, default = 600000)
-    parser.add_argument('--log_path', type = str, default = 'SymmetricHumanoidEnv-v0-correctmirror-2/')
+    parser.add_argument('--num_steps', type = int, default = 2000000)
+    parser.add_argument('--log_path', type = str, default = 'SymmetricHumanoidEnv-v0-correctmirror/')
     parser.add_argument('--update_frequency', type = int, default = 1)
     parser.add_argument('--eval_frequency', type = int, default = 5000)
     parser.add_argument('--n_eval_epochs', default = 50)
@@ -188,6 +188,6 @@ def record_video_with_policy(root_path, use_final_policy = True, use_best_policy
 
 if __name__ == '__main__':
     config = read_parser()
-    # env, eval_env, buffer, policy = create(config)
-    # main(env, eval_env, buffer, policy, config)
-    record_video_with_policy(config.log_path, use_final_policy = True, use_best_policy = True, plot_info = True)
+    env, eval_env, buffer, policy = create(config)
+    main(env, eval_env, buffer, policy, config)
+    # record_video_with_policy(config.log_path, use_final_policy = True, use_best_policy = True, plot_info = True)

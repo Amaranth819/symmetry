@@ -20,46 +20,8 @@ def mass_center(model, data):
     return (np.sum(mass * xpos, axis=0) / np.sum(mass))[0:2].copy()
 
 
-def obs_mirror_func(obs):
-    # center, negated, right, left
-    mirror_indices = [
-        0, 1, 2, 3, 4, 5, 6, 7, 
-        12, 13, 14, 15, 8, 9, 10, 11, 
-        19, 20, 21, 16, 17, 18,
-        22, 23, 24, 25, 26, 27, 28, 29, 30, 
-        35, 36, 37, 38, 31, 32, 33, 34,
-        42, 43, 44, 39, 40, 41,
-        45, 46,
-        48, 47
-    ]
-    return obs[..., mirror_indices]
 
-
-def act_mirror_func(act):
-    # right, left -> left, right
-    mirror_indices = [
-        0, 1, 2,
-        7, 8, 9, 10, 3, 4, 5, 6,
-        14, 15, 16, 11, 12, 13
-    ]
-    return act[..., mirror_indices]
-
-
-
-SymmetricHumanoidEnv_inds = {
-    'center_obs' : [0, 1, 2, 3, 4, 5, 6, 7, 22, 23, 24, 25, 26, 27, 28, 29, 30],
-    'right_obs' : [8, 9, 10, 11, 16, 17, 18, 31, 32, 33, 34, 39, 40, 41],
-    'left_obs' : [12, 13, 14, 15, 19, 20, 21, 35, 36, 37, 38, 42, 43, 44],
-    'right_phase' : [47],
-    'left_phase' : [48],
-    'center_act' : [0, 1, 2],
-    'right_act' : [3, 4, 5, 6, 11, 12, 13],
-    'left_act' : [7, 8, 9, 10, 14, 15, 16]
-}
-
-
-
-class SymmetricHumanoidEnv(HumanoidEnv):
+class SymmetricHumanoidEnv_v2(HumanoidEnv):
     def __init__(
         self, 
         period = 1.0,
@@ -70,7 +32,7 @@ class SymmetricHumanoidEnv(HumanoidEnv):
         terminate_when_unhealthy = True, 
         healthy_z_range = (1.0, 2.0),
         reset_noise_scale = 0.01,
-        desired_velocity = [0.5, 0.0], # [x, y]
+        desired_velocity = [3.0, 0.0], # [x, y]
         desired_torso_height = 1.0,
         **kwargs
     ):
@@ -148,8 +110,8 @@ class SymmetricHumanoidEnv(HumanoidEnv):
         observation = np.concatenate((
             position, 
             velocity, 
+            [rf_phase_sin, lf_phase_sin],
             self.desired_velocity,
-            [rf_phase_sin, lf_phase_sin]
         )).ravel()
         return observation
     
@@ -262,7 +224,7 @@ class SymmetricHumanoidEnv(HumanoidEnv):
 
 
 if __name__ == '__main__':
-    env = SymmetricHumanoidEnv()
+    env = SymmetricHumanoidEnv_v2()
     env.reset()
 
     from collections import defaultdict
